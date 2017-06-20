@@ -8,12 +8,16 @@ import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
 import net.imglib2.Cursor;
 import net.imglib2.IterableInterval;
+import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.img.Img;
+import net.imglib2.img.ImgFactory;
+import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.view.Views;
 
@@ -38,7 +42,7 @@ public class Imglib2Thresholding<T extends RealType<T>> implements Command {
     //
 
 	@Parameter 
-	private RandomAccessibleInterval<T> activeImg;
+	private Img<T> activeImg;
 	
     /*
 	@Parameter
@@ -60,31 +64,50 @@ public class Imglib2Thresholding<T extends RealType<T>> implements Command {
     
     public void run() {
     	
-    	IterableInterval<T> ii = Views.iterable(activeImg);
+    	//IterableInterval<T> ii = Views.iterable(activeImg);
     	
-    	Cursor<T> cursor = ii.cursor();
+    	final ImgFactory< UnsignedByteType > factory;
+		factory = new ArrayImgFactory<UnsignedByteType>();
+		
+		Img<UnsignedByteType> outputImg = factory.create(activeImg, new UnsignedByteType());
+    	
+    	Cursor<T> cursor = activeImg.cursor();
     	
     	T min = cursor.next().createVariable();
     	T max = cursor.next().createVariable();
     	cursor.reset();
     	
-    	ComputeMinMax<T> cmm = new ComputeMinMax<T>(ii, min , max);
+    	ComputeMinMax<T> cmm = new ComputeMinMax<T>(activeImg, min , max);
     	cmm.process();
     	System.out.println(min);
     	System.out.println(max);
     	
     	Double threshold = (min.getRealDouble() + max.getRealDouble())/2;
-        	   	
-    	while(cursor.hasNext()) {
-    		cursor.fwd();
-    		if(cursor.get().getRealDouble()>=threshold) {
-    			cursor.get().setReal(255.0);
+      
+    	RandomAccess<T> inRA = activeImg.randomAccess();
+    	
+    	Cursor<UnsignedByteType> outcursor = outputImg.cursor();
+    	while(outcursor.hasNext()) {
+    		
+    		
+    		outcursor.fwd();
+    		inRA.setPosition(outcursor);
+    		
+    		/*
+    		if(inRA.get().getRealDouble()>=threshold) {
+    			outcursor.get().set(255);
+    			//cursor.get().setReal(255.0);
     		} else {
-    			cursor.get().setReal(0.0);
+    			outcursor.get().set(0);
+    			//cursor.get().setReal(0.0);
     		}
+    		*/
+    		
+    		boolean contains = inRA.get().getRealDouble()>=threshold; 
+    		outcursor.get().set(contains ? 255 : 0);
     	}
     	
-    	ImageJFunctions.show(activeImg);
+    	ImageJFunctions.show(outputImg);
     	
 
     	
